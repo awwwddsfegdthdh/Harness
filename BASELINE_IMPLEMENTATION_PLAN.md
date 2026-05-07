@@ -18,6 +18,20 @@
 
 当前结论：第一阶段之后不值得按原计划完整逐阶段全部实现；更合理的下一步是先做错误分析，再优先尝试小步候选/prompt 调参和 confusion-aware，而不是直接实现完整 prompt compiler 或 label prototype。
 
+阶段 1.5 诊断已完成，结论如下：
+
+- 百炼低并发 API 诊断仍为 80.5%：539 条中正确 434、错误 105。
+- 错误类型：`candidate_hit_llm_wrong=74`，`candidate_miss=31`，`api_error=0`，`invalid_output_fallback_wrong=0`，`parser_missed_gold=0`。
+- 预算状态：prompt token 平均 451、p95 543、最大 728；completion token 平均 3.9、p95 7、最大 9。
+- 调用状态：API error 为 0，平均单请求耗时约 0.43s，p95 约 0.84s，最大 3.56s。
+
+据此调整后续优先级：
+
+1. 不优先处理 API 稳定性、parser 或 token prototype；这些不是当前瓶颈。
+2. 先做低成本候选扩展实验，例如把普通分类低置信度或全局 top-K 从当前约 12 到 20 小步提高。当前 top20 召回 96.5%，理论上最多可修复一部分候选 miss，但要验证是否会增加候选内误判。
+3. 更重点看候选内判别能力：大部分错误发生在 gold 已在候选集中但模型选错，因此下一步应优先试更强的候选内判别 prompt、示例顺序、少量 label contrast，而不是完整 prompt compiler。
+4. confusion-aware 暂作为候选内判别的轻量版本推进。当前 top confusion pair 最高只出现 2 次，错误较分散，不宜马上实现复杂全局混淆图；应先从自动 label overlap / retrieval 近邻中构造局部 contrast。
+
 ## 1. 问题定义与成功标准
 
 ### 1.1 问题定义
