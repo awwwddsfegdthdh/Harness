@@ -11,12 +11,12 @@
 1. 第一阶段已完成：主线增强版 + 任务路由 + guardrail-first。当前百炼低并发单轮结果为准确率 80.5%，prompt/条 451 token，completion/条 3.9 token，无 prompt truncated warning，无 API 错误。
 2. 阶段 1.5 已完成：错误类型诊断已区分候选召回失败、候选命中但 LLM 误判、输出解析失败、API 调用失败和 token 预算失败；结论见下方“阶段 1.5 诊断已完成”。
 3. 第二阶段已完成：候选召回与 prompt 参数小步实验没有找到稳定收益，未修改 `solution.py`。已试 `top16 + 12 examples`、prompt-only 判别规则、高置信检索 override；均未优于当前基线。当前基线 4 轮平均准确率 80.4%，各轮 80.3%/80.3%/80.5%/80.3%。
-4. 第三阶段目标更新为“局部 contrast / 轻量 confusion-aware”，只针对候选内误判，不做全局 prompt 规则。阶段三的任务是为当前 top candidates 中最容易混淆的少量 label 构造局部差异提示或示例对比；每次只做一个小实验，默认只跑 1 轮评测，超过基线后再决定是否追加 4 轮确认。
+4. 第三阶段已完成：局部 contrast / 轻量 confusion-aware 三个单轮实验均未超过当前基线，未修改 `solution.py`。已试局部 label hints、共享 label token contrast、示例顺序调整；结果分别为 78.5%、79.2%、78.5%，均低于当前基线区间。
 5. 第四阶段 label prototype / concept memory 暂缓。当前 prompt 平均 451 token、p95 543、最大约 728，距离 2048 很远，token 紧张不是当前主要问题；只有在扩大候选、加入混淆组说明或面对长文本任务后才重新评估。
 6. self-consistency 仍不默认启用。只有在多轮结果方差明显、低置信度样本集中出错，且单次额外调用能带来明确收益时，才做条件触发实验。
 7. pairwise tournament 和完整多 agent 继续不做，除非后续实验明确证明收益足以覆盖调用次数、延迟和限流风险。
 
-当前结论：第一阶段和阶段 1.5 已确认当前瓶颈，第二阶段小步调参未带来收益；继续推进时不应重复全局扩候选或泛化 prompt 规则。更合理的下一步是只针对候选内误判做局部 contrast / confusion-aware 小实验，而不是直接实现完整 prompt compiler 或 label prototype。
+当前结论：第一阶段和阶段 1.5 已确认当前瓶颈；第二阶段小步调参未带来收益；第三阶段局部 contrast / 轻量 confusion-aware 也未带来收益。继续推进时不应重复全局扩候选、泛化 prompt 规则、局部 hint/contrast 或示例顺序调整。除非有新的非 DEV 定制机制，否则更合理的是保留当前稳定基线，把后续工作转向报告整理、提交准备或正式评测风险检查，而不是继续刷 DEV。
 
 阶段 1.5 诊断已完成，结论如下：
 
@@ -49,11 +49,12 @@
 
 阶段 3 任务定义：
 
-1. 先从阶段 1.5 的 `candidate_hit_llm_wrong` 样本中抽取局部混淆场景，重点看 gold 与 pred 是否共享 label tokens、训练样本近邻或业务动作词。
-2. 构造轻量 contrast 信息时，只允许使用训练样本和 label 名称，不手写 DEV 客服领域规则，不读取测试 label 之外的信息。
-3. Prompt 侧只加入与当前候选局部相关的短 contrast，不加入“prefer specific label”这类已验证降分的泛化规则。
-4. 不默认扩大候选集、不做检索 top1 override、不做多轮投票。
-5. 验收标准：单轮准确率必须高于当前基线单轮区间约 80.3%-80.5%，且无 API 错误、无 prompt truncated warning，才考虑保留代码改动。
+1. 阶段 3 已执行并停止；不修改 `solution.py`。
+2. 局部 label hints 单轮为 78.5%，prompt 平均约 570 token，低于基线。
+3. 共享 label token contrast 单轮为 79.2%，prompt 平均约 531 token，低于基线。
+4. 示例顺序调整单轮为 78.5%，prompt 平均约 451 token，低于基线。
+5. 结论：候选内误判不能通过简单向 prompt 增加局部信息或调整示例顺序解决；继续增加 prompt 内容更可能干扰 Qwen3-8B 的稳定判断。
+6. 后续如果仍要尝试，必须是新的非 DEV 定制机制，并先单轮验证；否则保持当前基线。
 
 ## 1. 问题定义与成功标准
 
