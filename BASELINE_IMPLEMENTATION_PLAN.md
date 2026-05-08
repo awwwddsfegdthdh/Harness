@@ -15,11 +15,11 @@
 5. Label Prototype / Concept Memory 探索已完成并落入 `solution.py`：不采用替代 examples 或行内 cues 的负向变体，采用“更多候选 + 代码生成 label memory cards + 4 条 evidence examples”。临时 4 轮确认均为 80.891%，落代码后官方单轮为 80.9%，prompt/条 1074 token，completion/条 3.9 token，无 prompt truncated warning，无 API 错误。
 6. 隔离式 MCQ 路由探索已完成并落入 `solution.py`：只在 A-H 选项 label 且文本像选择题时触发无示例 MCQ prompt；失效后回退通用路径。共享 MCQ 从 73.2% 提升到落代码后 75.5%，prompt/条从 628 降到 189；DEV 回测仍为 80.9%。
 7. 泛化 MCQ label 映射探索已完成并落入 `solution.py`：FAQ 显示选择题 label 不保证固定 A/B/C/D 或单字符，因此新增非单字符 label 的 marker 到原始 label 精确映射。原始 MCQ 保持 75.5%；临时 `Option A/B/C/D` label 格式为 78.6%，高于改动前通用路径 74.5%；DEV 仍为 80.9%。
-8. 训练集内 Auto-Tuning 离线 LOO 已完成但未落入 `solution.py`：不调用 LLM、不看 test label，只用 train 内 leave-one-out 比较少量 preset。`recall24_e2_compact` 在 DEV/OOD train 上 selected hit 分别为 91.3%/94.1%，高于 current 86.6%/91.9%，但这是代理指标，候选扩大可能伤害 LLM 判别；暂不落代码。
+8. 训练集内 Auto-Tuning 离线 LOO 与保守 API 单轮验证已完成但未落入 `solution.py`：不调用 LLM、不看 test label 的 LOO 显示 `recall24_e2_compact` 在 DEV/OOD train 上 selected hit 分别为 91.3%/94.1%，高于 current 86.6%/91.9%，但这是代理指标。随后两个保守候选 API 单轮均低于当前 80.9% 主线：`compact_current` 80.148%，`recall20_e2_compact` 79.221%，且无截断、无 API 错误。因此暂不落代码。
 9. self-consistency 仍不默认启用。只有在多轮结果方差明显、低置信度样本集中出错，且单次额外调用能带来明确收益时，才做条件触发实验。
 10. pairwise tournament 和完整多 agent 继续不做，除非后续实验明确证明收益足以覆盖调用次数、延迟和限流风险。
 
-当前结论：主线增强、调用链路错误分型、候选扩张与规则调参、局部对比、Listwise、Label Prototype / Concept Memory、共享数据侧增强审核、隔离式 MCQ 路由、泛化 MCQ label 映射和训练集内 Auto-Tuning 离线 LOO 均已探索。不要重复全局扩候选、泛化 prompt 规则、局部 hint/contrast、示例顺序调整、listwise ranking、直接合并共享数据、复杂 MCQ few-shot、所有 MCQ 统一泛化 prompt，或把 LOO 代理指标最优 preset 直接写死。当前确认正向的新增机制是代码生成 label memory cards 与少量 evidence examples 的组合、隔离式无示例 MCQ prompt、非单字符 MCQ label 精确映射；后续应围绕提交风险、token 降级和私有集泛化做检查。
+当前结论：主线增强、调用链路错误分型、候选扩张与规则调参、局部对比、Listwise、Label Prototype / Concept Memory、共享数据侧增强审核、隔离式 MCQ 路由、泛化 MCQ label 映射和训练集内 Auto-Tuning 离线 LOO + 保守 API 验证均已探索。不要重复全局扩候选、泛化 prompt 规则、局部 hint/contrast、示例顺序调整、listwise ranking、直接合并共享数据、复杂 MCQ few-shot、所有 MCQ 统一泛化 prompt，或把 LOO 代理指标最优 preset 直接写死。当前确认正向的新增机制是代码生成 label memory cards 与少量 evidence examples 的组合、隔离式无示例 MCQ prompt、非单字符 MCQ label 精确映射；后续应围绕提交风险、token 降级和私有集泛化做检查。
 
 阶段 1.5 诊断已完成，结论如下：
 
@@ -69,7 +69,7 @@
 6. label prototype / concept memory 已采用代码生成版本；不采用 LLM 生成 label 描述。后续只在 prompt 接近 2048、examples 被大量删减、label 数显著增加或正式任务出现长文本/token 压力时做压缩或条件触发。
 7. self-consistency、pairwise tournament 和完整多 agent 继续不默认启用；除非有明确收益能覆盖额外调用、延迟、限流和 exact-match 风险。
 8. 隔离式 MCQ 路由已采用无示例 prompt；非单字符 MCQ label 已通过 marker 到原始 label 精确映射支持。不要加入共享 MCQ 训练样本、复杂 MCQ few-shot，或把单字符 MCQ 也替换成泛化完整 label prompt，除非新实验同时证明 MCQ 提升且 DEV 不掉。
-9. 训练集内 Auto-Tuning 目前只有离线 LOO 证据；不要把 `recall24_e2_compact` 或其他 LOO 最优 preset 直接落代码。若要继续，只 API 验证 `recall20_e2_compact` 和 `compact_current` 这类保守候选。
+9. 训练集内 Auto-Tuning 已有离线 LOO 和两个保守候选 API 单轮证据；不要把 `recall24_e2_compact` 或其他 LOO 最优 preset 直接落代码。`compact_current` 和 `recall20_e2_compact` API 单轮均低于当前主线，因此不继续扩大 Auto-Tuning API 网格；只有出现 prompt 接近 2048 或截断风险时，才把 `compact_current` 作为条件降级预案重新评估。
 
 ## 1. 问题定义与成功标准
 
