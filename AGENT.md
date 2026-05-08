@@ -158,7 +158,7 @@ python run.py --runs 1 --workers 10
 
 ## 迭代顺序
 
-当前已完成主线增强、调用链路错误分型、候选扩张与规则调参、局部对比、Listwise 候选重排、Label Prototype / Concept Memory、共享数据侧增强审核、隔离式 MCQ 路由和泛化 MCQ label 映射探索。`solution.py` 当前采用的正向变体是“更多候选 + 代码生成 label memory cards + 少量 evidence examples”，以及“选择题 label set 下的分层无示例 MCQ prompt + 非单字符 label 精确映射”。后续默认不是继续刷 DEV，而是先做提交前风险检查和报告整理；只有出现新的证据时，才按结果触发后续增强：
+当前已完成主线增强、调用链路错误分型、候选扩张与规则调参、局部对比、Listwise 候选重排、Label Prototype / Concept Memory、共享数据侧增强审核、隔离式 MCQ 路由、泛化 MCQ label 映射和训练集内 Auto-Tuning 离线 LOO 探索。`solution.py` 当前采用的正向变体是“更多候选 + 代码生成 label memory cards + 少量 evidence examples”，以及“选择题 label set 下的分层无示例 MCQ prompt + 非单字符 label 精确映射”。后续默认不是继续刷 DEV，而是先做提交前风险检查和报告整理；只有出现新的证据时，才按结果触发后续增强：
 
 1. 候选召回差：轻量 prompt compiler / 检索权重自适应 / 扩大 top-K。
 2. 混淆类错误多：confusion-aware 自动混淆组。
@@ -168,3 +168,5 @@ python run.py --runs 1 --workers 10
 6. 采样波动大：只在低置信度样本上尝试 self-consistency。
 
 截至当前实验，全局扩候选、prompt-only 规则、检索 override、局部 label hints、共享 token contrast、示例顺序调整、Listwise reranking、直接合并共享数据、MCQ 显式解析选项 prompt、MCQ 每选项一例、所有 MCQ 统一泛化 prompt 均未超过基线或未稳定获益，因此不要把这些负向变体落入 `solution.py`。Label Prototype / Concept Memory 的正向组合、隔离式无示例 MCQ 路由和非单字符 MCQ label 映射已落入代码；不要改成完全替代 examples、LLM 生成 label 描述或复杂 MCQ few-shot。不建议 pairwise tournament 或完整多 agent，除非有明确实验收益和足够时间预算。
+
+训练集内 Auto-Tuning 离线 LOO 已探索但未落代码：`recall20/24 + 2 examples + compact cards` 提高 train 内候选覆盖并降低 token，但这只是代理指标；历史实验显示候选扩大可能导致 API 降分。后续若验证，只测试 1-2 个保守 preset，不要做宽网格 DEV 刷分。
