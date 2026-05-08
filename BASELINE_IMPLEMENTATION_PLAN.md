@@ -13,10 +13,11 @@
 3. 第二阶段已完成：候选召回与 prompt 参数小步实验没有找到稳定收益，未修改 `solution.py`。已试 `top16 + 12 examples`、prompt-only 判别规则、高置信检索 override；均未优于当前基线。当前基线 4 轮平均准确率 80.4%，各轮 80.3%/80.3%/80.5%/80.3%。
 4. 第三阶段已完成：局部 contrast / 轻量 confusion-aware 三个单轮实验均未超过当前基线，未修改 `solution.py`。已试局部 label hints、共享 label token contrast、示例顺序调整；结果分别为 78.5%、79.2%、78.5%，均低于当前基线区间。
 5. Label Prototype / Concept Memory 探索已完成并落入 `solution.py`：不采用替代 examples 或行内 cues 的负向变体，采用“更多候选 + 代码生成 label memory cards + 4 条 evidence examples”。临时 4 轮确认均为 80.891%，落代码后官方单轮为 80.9%，prompt/条 1074 token，completion/条 3.9 token，无 prompt truncated warning，无 API 错误。
-6. self-consistency 仍不默认启用。只有在多轮结果方差明显、低置信度样本集中出错，且单次额外调用能带来明确收益时，才做条件触发实验。
-7. pairwise tournament 和完整多 agent 继续不做，除非后续实验明确证明收益足以覆盖调用次数、延迟和限流风险。
+6. 隔离式 MCQ 路由探索已完成并落入 `solution.py`：只在 A-H 选项 label 且文本像选择题时触发无示例 MCQ prompt；失效后回退通用路径。共享 MCQ 从 73.2% 提升到落代码后 75.5%，prompt/条从 628 降到 189；DEV 回测仍为 80.9%。
+7. self-consistency 仍不默认启用。只有在多轮结果方差明显、低置信度样本集中出错，且单次额外调用能带来明确收益时，才做条件触发实验。
+8. pairwise tournament 和完整多 agent 继续不做，除非后续实验明确证明收益足以覆盖调用次数、延迟和限流风险。
 
-当前结论：主线增强、调用链路错误分型、候选扩张与规则调参、局部对比、Listwise 和 Label Prototype / Concept Memory 均已探索。不要重复全局扩候选、泛化 prompt 规则、局部 hint/contrast、示例顺序调整或 listwise ranking。当前唯一确认正向的新增机制是代码生成 label memory cards 与少量 evidence examples 的组合；后续应围绕提交风险、token 降级和私有集泛化做检查。
+当前结论：主线增强、调用链路错误分型、候选扩张与规则调参、局部对比、Listwise、Label Prototype / Concept Memory、共享数据侧增强审核和隔离式 MCQ 路由均已探索。不要重复全局扩候选、泛化 prompt 规则、局部 hint/contrast、示例顺序调整、listwise ranking、直接合并共享数据或复杂 MCQ few-shot。当前确认正向的新增机制是代码生成 label memory cards 与少量 evidence examples 的组合，以及隔离式无示例 MCQ prompt；后续应围绕提交风险、token 降级和私有集泛化做检查。
 
 阶段 1.5 诊断已完成，结论如下：
 
@@ -65,6 +66,7 @@
 5. 报告策略：明确写出第一阶段主线 Harness、阶段 1.5 错误分型、第二阶段和第三阶段负向实验，以及为什么没有把这些变体落入提交文件。
 6. label prototype / concept memory 已采用代码生成版本；不采用 LLM 生成 label 描述。后续只在 prompt 接近 2048、examples 被大量删减、label 数显著增加或正式任务出现长文本/token 压力时做压缩或条件触发。
 7. self-consistency、pairwise tournament 和完整多 agent 继续不默认启用；除非有明确收益能覆盖额外调用、延迟、限流和 exact-match 风险。
+8. 隔离式 MCQ 路由已采用无示例 prompt；不要加入共享 MCQ 训练样本或复杂 MCQ few-shot，除非新实验同时证明 MCQ 提升且 DEV 不掉。
 
 ## 1. 问题定义与成功标准
 
@@ -833,10 +835,11 @@ python run.py --runs 1 --workers 10
 
 改进：
 
-- 加强任务路由。
+- 隔离式 MCQ 路由已落入：仅 A-H 选项 label 且文本像选择题时触发。
 - 选择题 prompt 不再强调训练 label 语义，而强调题干和选项阅读。
-- examples 减少，把 token 留给完整题干。
+- 不放 examples，把 token 留给完整题干。
 - 输出 parser 对选项字母做专门解析。
+- 触发失败、超预算、调用异常或输出非法时回退原通用 Harness。
 
 ### 9.6 采样波动大
 
