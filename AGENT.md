@@ -156,13 +156,13 @@ python run.py --runs 1 --workers 10
 
 ## 迭代顺序
 
-只有第一阶段稳定后，才按结果触发后续增强：
+当前第一阶段、阶段 1.5、第二阶段和第三阶段已经完成。后续默认不是继续刷 DEV，而是先做提交前风险检查和报告整理；只有出现新的证据时，才按结果触发后续增强：
 
 1. 候选召回差：轻量 prompt compiler / 检索权重自适应 / 扩大 top-K。
 2. 混淆类错误多：confusion-aware 自动混淆组。
-3. token 紧张：label prototype / concept memory。
+3. token 紧张、label 极多或长文本导致 prompt 接近 2048：再考虑 label prototype / concept memory。
 4. 输出非法多：加强 parser 和 guardrail-first。
 5. 选择题差：加强选择题路由和 prompt。
 6. 采样波动大：只在低置信度样本上尝试 self-consistency。
 
-不建议 pairwise tournament 或完整多 agent，除非有明确实验收益和足够时间预算。
+截至当前实验，第二阶段的全局扩候选、prompt-only 规则和检索 override 均未超过基线；第三阶段的局部 label hints、共享 token contrast 和示例顺序调整也均降分。因此不要把这些负向变体落入 `solution.py`。不建议 pairwise tournament 或完整多 agent，除非有明确实验收益和足够时间预算。

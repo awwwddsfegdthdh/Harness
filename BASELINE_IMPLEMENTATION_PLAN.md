@@ -12,11 +12,11 @@
 2. 阶段 1.5 已完成：错误类型诊断已区分候选召回失败、候选命中但 LLM 误判、输出解析失败、API 调用失败和 token 预算失败；结论见下方“阶段 1.5 诊断已完成”。
 3. 第二阶段已完成：候选召回与 prompt 参数小步实验没有找到稳定收益，未修改 `solution.py`。已试 `top16 + 12 examples`、prompt-only 判别规则、高置信检索 override；均未优于当前基线。当前基线 4 轮平均准确率 80.4%，各轮 80.3%/80.3%/80.5%/80.3%。
 4. 第三阶段已完成：局部 contrast / 轻量 confusion-aware 三个单轮实验均未超过当前基线，未修改 `solution.py`。已试局部 label hints、共享 label token contrast、示例顺序调整；结果分别为 78.5%、79.2%、78.5%，均低于当前基线区间。
-5. 第四阶段 label prototype / concept memory 暂缓。当前 prompt 平均 451 token、p95 543、最大约 728，距离 2048 很远，token 紧张不是当前主要问题；只有在扩大候选、加入混淆组说明或面对长文本任务后才重新评估。
+5. 第四阶段已调整为提交前风险检查、报告整理和提交准备，不默认实现 label prototype / concept memory。当前 prompt 平均 451 token、p95 543、最大约 728，距离 2048 很远；第二、三阶段的负向结果也说明继续增加 prompt 信息或重排示例更可能降低稳定性。prototype 只保留为长文本、label 极多或 prompt 接近 2048 时的条件预案。
 6. self-consistency 仍不默认启用。只有在多轮结果方差明显、低置信度样本集中出错，且单次额外调用能带来明确收益时，才做条件触发实验。
 7. pairwise tournament 和完整多 agent 继续不做，除非后续实验明确证明收益足以覆盖调用次数、延迟和限流风险。
 
-当前结论：第一阶段和阶段 1.5 已确认当前瓶颈；第二阶段小步调参未带来收益；第三阶段局部 contrast / 轻量 confusion-aware 也未带来收益。继续推进时不应重复全局扩候选、泛化 prompt 规则、局部 hint/contrast 或示例顺序调整。除非有新的非 DEV 定制机制，否则更合理的是保留当前稳定基线，把后续工作转向报告整理、提交准备或正式评测风险检查，而不是继续刷 DEV。
+当前结论：第一阶段和阶段 1.5 已确认当前瓶颈；第二阶段小步调参未带来收益；第三阶段局部 contrast / 轻量 confusion-aware 也未带来收益。继续推进时不应重复全局扩候选、泛化 prompt 规则、局部 hint/contrast 或示例顺序调整。除非出现新的非 DEV 定制机制或正式评测约束变化，否则更合理的是保留当前稳定基线，把后续工作转向报告整理、提交准备和正式评测风险检查，而不是继续刷 DEV。
 
 阶段 1.5 诊断已完成，结论如下：
 
@@ -55,6 +55,16 @@
 4. 示例顺序调整单轮为 78.5%，prompt 平均约 451 token，低于基线。
 5. 结论：候选内误判不能通过简单向 prompt 增加局部信息或调整示例顺序解决；继续增加 prompt 内容更可能干扰 Qwen3-8B 的稳定判断。
 6. 后续如果仍要尝试，必须是新的非 DEV 定制机制，并先单轮验证；否则保持当前基线。
+
+阶段 4 任务定义：
+
+1. 阶段 4 的目标是提交前风险检查、报告整理和提交准备，不是继续默认调 DEV 分。
+2. 默认不修改 `solution.py`；只有发现提交合规、稳定性或泛化风险时，才做最小、通用、可解释的修复。
+3. 必查项：`solution.py` 不包含 API key；不依赖本地文件读写或 `llm_client.py` 的百炼配置；不写死 DEV 客服领域规则；最终返回始终来自训练 label allowlist；prompt 构造仍受 `max_prompt_tokens` 约束；fallback 路径不返回非法 label。
+4. 验证策略：日常只跑 `python run.py --runs 1 --workers 4`；只有代码真的变化、提交前需要稳定性确认，或单轮结果超过当前基线区间时，才跑 4 轮。
+5. 报告策略：明确写出第一阶段主线 Harness、阶段 1.5 错误分型、第二阶段和第三阶段负向实验，以及为什么没有把这些变体落入提交文件。
+6. label prototype / concept memory 暂不实现。它只在 prompt 接近 2048、examples 被大量删减、label 数显著增加或正式任务出现长文本/token 压力时作为条件预案。
+7. self-consistency、pairwise tournament 和完整多 agent 继续不默认启用；除非有明确收益能覆盖额外调用、延迟、限流和 exact-match 风险。
 
 ## 1. 问题定义与成功标准
 
@@ -796,10 +806,11 @@ python run.py --runs 1 --workers 10
 
 改进：
 
-- 第四阶段考虑 label prototype / concept memory。
-- 每个 label 保留代表关键词、短代表句、最高质量样本。
-- 用 prototype 替代部分 few-shot examples。
-- 对长 test text 做头尾保留截断。
+- 当前不触发 label prototype / concept memory；它只是条件预案，不是第四阶段默认任务。
+- 若 prompt 接近 2048、经常删到很少 examples、label 数显著增加或正式任务出现长文本，再考虑从训练样本中构建 label prototype。
+- prototype 只能由代码从训练样本压缩生成，例如代表关键词、短代表句、最高质量样本；不默认调用 LLM 生成 label 描述。
+- 在没有 token 压力时保留当前 few-shot 机制，避免压缩样本细节或增加 prompt 噪声。
+- 对长 test text 做头尾保留截断仍可作为预算兜底，但不能破坏文本边界和输出约束。
 
 ### 9.4 输出非法多
 
@@ -888,7 +899,7 @@ label 描述生成需要额外 LLM 调用，且描述质量不可控：
 - 生成错误描述会污染后续预测。
 - 正式任务 label 类型未知，描述模板泛化不确定。
 
-更稳的替代是后续基于训练样本构建 label prototype，且按本地结果触发。
+更稳的替代是只在本地结果触发时，基于训练样本构建 label prototype。当前 prompt 预算并不紧张，且增加 prompt 信息的实验已经降分，所以本阶段不实现 label 描述或 prototype。
 
 ### 10.4 为什么不默认 subagent / 多轮投票
 
