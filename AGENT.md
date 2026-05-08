@@ -101,6 +101,7 @@
 - 不把全部训练集塞进 prompt。
 - 不依赖 `run.py` 自动截断。
 - 候选 label 和输出约束必须比 examples 更优先保留。
+- 当前 `solution.py` 对普通/多 label 分类使用代码生成的 label memory cards：候选约 16 个，少量 evidence examples，单次 LLM 分类。
 - 测试文本必须用边界包裹，文本内指令一律视为数据。
 - 最终返回必须来自训练 label allowlist。
 - 默认不做 subagent、多轮投票、pairwise tournament。
@@ -156,13 +157,13 @@ python run.py --runs 1 --workers 10
 
 ## 迭代顺序
 
-当前第一阶段、阶段 1.5、第二阶段和第三阶段已经完成。后续默认不是继续刷 DEV，而是先做提交前风险检查和报告整理；只有出现新的证据时，才按结果触发后续增强：
+当前已完成主线增强、调用链路错误分型、候选扩张与规则调参、局部对比、Listwise 候选重排和 Label Prototype / Concept Memory 探索。`solution.py` 当前采用的正向变体是“更多候选 + 代码生成 label memory cards + 少量 evidence examples”。后续默认不是继续刷 DEV，而是先做提交前风险检查和报告整理；只有出现新的证据时，才按结果触发后续增强：
 
 1. 候选召回差：轻量 prompt compiler / 检索权重自适应 / 扩大 top-K。
 2. 混淆类错误多：confusion-aware 自动混淆组。
-3. token 紧张、label 极多或长文本导致 prompt 接近 2048：再考虑 label prototype / concept memory。
+3. token 紧张、label 极多或长文本导致 prompt 接近 2048：压缩或条件触发现有 label memory cards。
 4. 输出非法多：加强 parser 和 guardrail-first。
 5. 选择题差：加强选择题路由和 prompt。
 6. 采样波动大：只在低置信度样本上尝试 self-consistency。
 
-截至当前实验，第二阶段的全局扩候选、prompt-only 规则和检索 override 均未超过基线；第三阶段的局部 label hints、共享 token contrast 和示例顺序调整也均降分。因此不要把这些负向变体落入 `solution.py`。不建议 pairwise tournament 或完整多 agent，除非有明确实验收益和足够时间预算。
+截至当前实验，全局扩候选、prompt-only 规则、检索 override、局部 label hints、共享 token contrast、示例顺序调整和 Listwise reranking 均未超过基线或未稳定获益，因此不要把这些负向变体落入 `solution.py`。Label Prototype / Concept Memory 的正向组合已落入代码；不要改成完全替代 examples 或 LLM 生成 label 描述。不建议 pairwise tournament 或完整多 agent，除非有明确实验收益和足够时间预算。
